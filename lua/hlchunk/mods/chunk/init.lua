@@ -76,6 +76,7 @@ function ChunkMod:get_chunk_data(range, virt_text_list, row_list, virt_text_win_
     local beg_blank_len = cFunc.get_indent(range.bufnr, range.start)
     local end_blank_len = cFunc.get_indent(range.bufnr, range.finish)
     local start_col = math.max(math.min(beg_blank_len, end_blank_len) - self.meta.shiftwidth, 0)
+    start_col = math.max(start_col - (self.meta.shiftwidth == 1 and 1 or 0), 0)
 
     if beg_blank_len > 0 then
         local virt_text_len = beg_blank_len - start_col
@@ -165,7 +166,7 @@ function ChunkMod:render(range, opts)
         self.meta.task = LoopTask(function(vt, row, vt_win_col)
             row_opts.virt_text = { { vt, text_hl } }
             row_opts.virt_text_win_col = vt_win_col
-            if api.nvim_buf_is_valid(range.bufnr) and api.nvim_buf_line_count(range.bufnr) > row then
+            if api.nvim_buf_is_valid(range.bufnr) and row ~= nil and api.nvim_buf_line_count(range.bufnr) > row then
                 api.nvim_buf_set_extmark(range.bufnr, self.meta.ns_id, row, 0, row_opts)
             end
         end, "linear", self.conf.duration, virt_text_list, row_list, virt_text_win_col_list)
@@ -194,8 +195,11 @@ function ChunkMod:createAutocmd()
         if ret_code == CHUNK_RANGE_RET.OK then
             self:render(range, { error = false, lazy = opts.lazy })
         elseif ret_code == CHUNK_RANGE_RET.NO_CHUNK then
-            self:clear(Scope(bufnr, 0, api.nvim_buf_line_count(bufnr)))
             self:updatePreState({}, {}, {}, false)
+            if self.meta == nil and self.meta.task ~= nil then
+                self.meta.task:stop()
+            end
+            self:clear(Scope(bufnr, 0, api.nvim_buf_line_count(bufrn)))
         elseif ret_code == CHUNK_RANGE_RET.CHUNK_ERR then
             self:render(range, { error = self.conf.error_sign, lazy = opts.lazy })
         elseif ret_code == CHUNK_RANGE_RET.NO_TS then
